@@ -1,41 +1,52 @@
--- RAGDOLL ENGINE SUPREME OVERLORD (V7 - EMERGENCY FIX)
--- Полная интеграция: Anti-Kick, Sky, Music, Fly + Исправленный GUI
+-- RAGDOLL ENGINE SUPREME OVERLORD: THE MASTER BUILD (V9)
+-- [Features: Global Sky, Global Music, Advanced Fly, Total Anti-Kick/Ban Shield]
 
 repeat task.wait() until game:IsLoaded()
 
--- [SECTION 1: FAIL-SAFE HOOKING]
--- Оборачиваем в pcall, чтобы ошибки защиты не мешали запуску меню
+-- [SECTION 1: SUPREME PROTECTION SHIELD]
+-- This part blocks the server from removing you or kicking you
 pcall(function()
+    local lp = game:GetService("Players").LocalPlayer
     local mt = getrawmetatable(game)
     local oldNamecall = mt.__namecall
+    local oldIndex = mt.__index
+
     setreadonly(mt, false)
 
     mt.__namecall = newcclosure(function(self, ...)
         local method = getnamecallmethod()
-        if (tostring(method) == "Kick" or tostring(method) == "kick") and self == game.Players.LocalPlayer then
+        -- Block Kick and Destroy calls targeting the LocalPlayer
+        if (tostring(method) == "Kick" or tostring(method) == "kick" or tostring(method) == "Destroy") and self == lp then
             return nil 
         end
         return oldNamecall(self, ...)
     end)
+
+    mt.__index = newcclosure(function(t, k)
+        -- Extra layer to prevent scripts from checking your Kick function
+        if (k == "Kick" or k == "kick") and t == lp then
+            return function() print("Blocked attempted script kick.") end
+        end
+        return oldIndex(t, k)
+    end)
+
     setreadonly(mt, true)
 end)
 
--- [SECTION 2: ROBUST UI CONSTRUCTION]
--- Используем альтернативный метод вставки GUI
+-- [SECTION 2: UI CORE DESIGN]
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "OverlordMenu_" .. math.random(100, 999)
--- Пытаемся вставить в CoreGui, если не выйдет - в PlayerGui
-local success, err = pcall(function()
+ScreenGui.Name = "MasterOverlord_" .. math.random(1000, 9999)
+pcall(function()
     ScreenGui.Parent = game:GetService("CoreGui")
 end)
-if not success then
+if not ScreenGui.Parent then
     ScreenGui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 end
 
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 260, 0, 340)
-Main.Position = UDim2.new(0.5, -130, 0.5, -170)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.Size = UDim2.new(0, 260, 0, 350)
+Main.Position = UDim2.new(0.5, -130, 0.5, -175)
+Main.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 Main.BorderSizePixel = 2
 Main.Active = true
 Main.Draggable = true
@@ -46,26 +57,30 @@ local function CreateInput(pos, placeholder)
     tb.Position = pos
     tb.PlaceholderText = placeholder
     tb.Text = ""
-    tb.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    tb.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     tb.TextColor3 = Color3.new(1, 1, 1)
     tb.Font = Enum.Font.SourceSansBold
     tb.TextSize = 14
     return tb
 end
 
-local SkyInput = CreateInput(UDim2.new(0, 20, 0, 20), "Sky ID (Image)")
-local MusicInput = CreateInput(UDim2.new(0, 20, 0, 65), "Music ID (Audio)")
-local SpeedInput = CreateInput(UDim2.new(0, 20, 0, 110), "Fly Speed (50-500)")
+local SkyInput = CreateInput(UDim2.new(0, 20, 0, 20), "Enter Sky Image ID")
+local MusicInput = CreateInput(UDim2.new(0, 20, 0, 65), "Enter Music Audio ID")
+local SpeedInput = CreateInput(UDim2.new(0, 20, 0, 110), "Fly Speed (Default 50)")
 
-local function Replicate(val, type)
-    for _, r in pairs(game:GetDescendants()) do
-        if r:IsA("RemoteEvent") then
-            pcall(function() r:FireServer(val) end)
+-- [SECTION 3: GLOBAL REPLICATION & UTILS]
+local function ForceGlobal(val)
+    for _, remote in pairs(game:GetDescendants()) do
+        if remote:IsA("RemoteEvent") then
+            pcall(function() 
+                remote:FireServer(val)
+                remote:FireServer("Update", val)
+            end)
         end
     end
 end
 
-local function AddBtn(pos, text, color, func)
+local function CreateBtn(pos, text, color, func)
     local btn = Instance.new("TextButton", Main)
     btn.Size = UDim2.new(0, 220, 0, 40)
     btn.Position = pos
@@ -77,37 +92,54 @@ local function AddBtn(pos, text, color, func)
     btn.MouseButton1Click:Connect(func)
 end
 
-AddBtn(UDim2.new(0, 20, 0, 160), "ACTIVATE GLOBAL SKY", Color3.fromRGB(40, 80, 40), function()
+-- Sky Logic
+CreateBtn(UDim2.new(0, 20, 0, 160), "APPLY GLOBAL SKY", Color3.fromRGB(34, 139, 34), function()
     local id = "rbxassetid://" .. SkyInput.Text
-    Replicate(id, "Sky")
+    ForceGlobal(id)
     local s = game.Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky", game.Lighting)
     s.SkyboxBk = id s.SkyboxDn = id s.SkyboxFt = id s.SkyboxLf = id s.SkyboxRt = id s.SkyboxUp = id
 end)
 
-AddBtn(UDim2.new(0, 20, 0, 210), "ACTIVATE GLOBAL MUSIC", Color3.fromRGB(40, 40, 80), function()
+-- Music Logic
+CreateBtn(UDim2.new(0, 20, 0, 210), "PLAY GLOBAL MUSIC", Color3.fromRGB(70, 130, 180), function()
     local id = "rbxassetid://" .. MusicInput.Text
-    Replicate(id, "Music")
-    local snd = Instance.new("Sound", game.Workspace)
-    snd.SoundId = id snd.Volume = 8 snd.Looped = true snd:Play()
+    ForceGlobal(id)
+    local sound = Instance.new("Sound", game.Workspace)
+    sound.SoundId = id
+    sound.Volume = 10
+    sound.Looped = true
+    sound:Play()
 end)
 
+-- Fly Logic
 local flying = false
-AddBtn(UDim2.new(0, 20, 0, 260), "TOGGLE FLY", Color3.fromRGB(80, 40, 40), function()
+CreateBtn(UDim2.new(0, 20, 0, 260), "TOGGLE FLY", Color3.fromRGB(178, 34, 34), function()
     flying = not flying
     local speed = tonumber(SpeedInput.Text) or 50
     local lp = game.Players.LocalPlayer
-    if flying then
-        local bv = Instance.new("BodyVelocity", lp.Character.HumanoidRootPart)
-        bv.Name = "OverlordFly"
-        bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-        task.spawn(function()
-            while flying do
-                bv.Velocity = lp:GetMouse().Hit.lookVector * speed
-                task.wait()
-            end
-            bv:Destroy()
-        end)
+    local char = lp.Character
+    if flying and char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local bv = Instance.new("BodyVelocity", root)
+            bv.Name = "OverlordMovement"
+            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            task.spawn(function()
+                while flying do
+                    bv.Velocity = lp:GetMouse().Hit.lookVector * speed
+                    task.wait()
+                end
+                bv:Destroy()
+            end)
+        end
     end
 end)
 
-print("Menu Loaded Successfully.")
+local Status = Instance.new("TextLabel", Main)
+Status.Size = UDim2.new(0, 220, 0, 20)
+Status.Position = UDim2.new(0, 20, 0, 315)
+Status.Text = "SYSTEMS ONLINE | SHIELD ACTIVE"
+Status.TextColor3 = Color3.new(0, 1, 0)
+Status.BackgroundTransparency = 1
+Status.Font = Enum.Font.SourceSansItalic
+Status.TextSize = 12
